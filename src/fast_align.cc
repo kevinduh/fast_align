@@ -130,7 +130,10 @@ int main(int argc, char** argv) {
   }
   double prob_align_not_null = 1.0 - prob_align_null;
   const unsigned kNULL = d.Convert("<eps>");
-  TTable s2t, t2s;
+
+  TTable *s2t;
+  s2t = new MultinomialTable();
+
   unordered_map<pair<short, short>, unsigned, PairHash> size_counts;
   double tot_len_ratio = 0;
   double mean_srclen_multiplier = 0;
@@ -180,7 +183,7 @@ int main(int argc, char** argv) {
         double prob_a_i = 1.0 / (src.size() + use_null);  // uniform (model 1)
         if (use_null) {
           if (favor_diagonal) prob_a_i = prob_align_null;
-          probs[0] = s2t.prob(kNULL, f_j) * prob_a_i;
+          probs[0] = s2t->prob(kNULL, f_j) * prob_a_i;
           sum += probs[0];
         }
         double az = 0;
@@ -189,7 +192,7 @@ int main(int argc, char** argv) {
         for (unsigned i = 1; i <= src.size(); ++i) {
           if (favor_diagonal)
             prob_a_i = DiagonalAlignment::UnnormalizedProb(j + 1, i, trg.size(), src.size(), diagonal_tension) / az;
-          probs[i] = s2t.prob(src[i-1], f_j) * prob_a_i;
+          probs[i] = s2t->prob(src[i-1], f_j) * prob_a_i;
           sum += probs[i];
         }
         if (final_iteration) {
@@ -216,11 +219,11 @@ int main(int argc, char** argv) {
           if (use_null) {
             double count = probs[0] / sum;
             c0 += count;
-            s2t.Increment(kNULL, f_j, count);
+            s2t->Increment(kNULL, f_j, count);
           }
           for (unsigned i = 1; i <= src.size(); ++i) {
             const double p = probs[i] / sum;
-            s2t.Increment(src[i-1], f_j, p);
+            s2t->Increment(src[i-1], f_j, p);
             emp_feat += DiagonalAlignment::Feature(j, i, trg.size(), src.size()) * p;
           }
         }
@@ -265,9 +268,9 @@ int main(int argc, char** argv) {
         cerr << "     final tension: " << diagonal_tension << endl;
       }
       if (variational_bayes)
-        s2t.NormalizeVB(alpha);
+        s2t->NormalizeVB(alpha);
       else
-        s2t.Normalize();
+        s2t->Normalize();
       //prob_align_null *= 0.8; // XXX
       //prob_align_null += (c0 / toks) * 0.2;
       prob_align_not_null = 1.0 - prob_align_null;
@@ -275,7 +278,8 @@ int main(int argc, char** argv) {
   }
   if (!conditional_probability_filename.empty()) {
     cerr << "conditional probabilities: " << conditional_probability_filename << endl;
-    s2t.ExportToFile(conditional_probability_filename.c_str(), d);
+    s2t->ExportToFile(conditional_probability_filename.c_str(), d);
   }
+  delete s2t;
   return 0;
 }

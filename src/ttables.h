@@ -39,7 +39,31 @@ class TTable {
   TTable() {}
   typedef std::unordered_map<unsigned, double> Word2Double;
   typedef std::vector<Word2Double> Word2Word2Double;
-  inline double prob(unsigned e, unsigned f) const {
+  virtual ~TTable() {};
+
+  virtual double prob(unsigned e, unsigned f) const = 0;
+  virtual void NormalizeVB(const double alpha) = 0;
+  virtual void Normalize() = 0;
+  virtual TTable& operator+=(const TTable& rhs) = 0;
+  virtual void ExportToFile(const char* filename, Dict& d) = 0;
+
+  inline void Increment(unsigned e, unsigned f) {
+    if (e >= counts.size()) counts.resize(e + 1);
+    counts[e][f] += 1.0;
+  }
+  inline void Increment(unsigned e, unsigned f, double x) {
+    if (e >= counts.size()) counts.resize(e + 1);
+    counts[e][f] += x;
+  }
+ public:
+  Word2Word2Double ttable;
+  Word2Word2Double counts;
+};
+
+
+class MultinomialTable : public TTable {
+ public:
+  double prob(unsigned e, unsigned f) const {
     if (e < ttable.size()) {
       const Word2Double& cpd = ttable[e];
       const Word2Double::const_iterator it = cpd.find(f);
@@ -48,14 +72,6 @@ class TTable {
     } else {
       return 1e-9;
     }
-  }
-  inline void Increment(unsigned e, unsigned f) {
-    if (e >= counts.size()) counts.resize(e + 1);
-    counts[e][f] += 1.0;
-  }
-  inline void Increment(unsigned e, unsigned f, double x) {
-    if (e >= counts.size()) counts.resize(e + 1);
-    counts[e][f] += x;
   }
   void NormalizeVB(const double alpha) {
     ttable.swap(counts);
@@ -108,9 +124,8 @@ class TTable {
     }
     file.close();
   }
- public:
-  Word2Word2Double ttable;
-  Word2Word2Double counts;
+
+
 };
 
 #endif
