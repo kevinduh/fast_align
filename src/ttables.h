@@ -17,6 +17,8 @@
 
 #include <cmath>
 #include <fstream>
+#include <sstream>
+#include <stdio.h>
 
 #include "src/port.h"
 
@@ -125,6 +127,88 @@ class MultinomialTable : public TTable {
     file.close();
   }
 
+};
+
+
+class GaussianTable : public TTable {
+ public:
+  GaussianTable(const std::string& embedding_file, Dict* d){
+    // read file
+    std::ifstream in(embedding_file.c_str());
+    if (!in){
+      std::cerr << "Can't read " << embedding_file << std::endl;
+    }
+    std::string line;
+    int lc = 0;
+    in >> words >> size; 
+    std::cerr << "Reading embedding: "<< words << " words of size " << size << std::endl;
+    while (getline(in,line)){
+      std::string input_token;
+      std::stringstream ss(line);
+      getline(ss,input_token,' ');
+      unsigned word_id = d->Convert(input_token,true);
+      embeddings[word_id] = std::vector<double>();
+      for (unsigned vi=0;vi<size;++vi){
+	getline(ss,input_token,' ');
+	embeddings[word_id].push_back(::atof(input_token.c_str()));
+      }
+      ++lc;
+    }
+
+    // temp
+    PrintEmbeddings(d);
+  }
+
+  double prob(unsigned e, unsigned f) const {
+    std::cout << "Not yet implemented";
+    exit(1);
+  }
+
+  void NormalizeVB(const double alpha) {
+    std::cout << "Not yet implemented";
+    exit(1);
+  }
+
+  void Normalize() {
+    std::cout << "Not yet implemented";
+    exit(1);
+
+  }
+
+  TTable& operator+=(const TTable& rhs) {
+    std::cout << "Not yet implemented";
+    exit(1);
+
+  }
+
+  void ExportToFile(const char* filename, Dict& d) {
+    std::cout << "Not yet implemented";
+    exit(1);
+  }
+
+  // Temporary for Debugging. just printout out the embeddings map
+  void PrintEmbeddings(Dict* d){
+    for (unsigned v=0;v<words;++v){
+      std::string this_word = d->Convert(v);
+      std::cerr << "word/id: " << this_word << " " << v << " " ;
+      std::unordered_map< unsigned, std::vector<double> >::const_iterator it = embeddings.find(v);
+      if (it == embeddings.end()){
+	std::cerr << " -- ";
+      }
+      else {
+	for (unsigned vv=0;vv<size;++vv){
+	  std::cerr << (it->second)[vv] << " ";
+	}      
+      }
+      std::cerr << std::endl;
+    }
+
+  }
+
+ public:
+  std::unordered_map< unsigned, std::vector<double> > embeddings;
+  unsigned words; // number of words in embeddings file
+  unsigned size; // size (dimension) of embedding vectors
 
 };
 

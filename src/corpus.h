@@ -59,6 +59,7 @@ class Dict {
     if (id == 0) return b0_;
     return words_[id-1];
   }
+
  private:
   std::string b0_;
   std::vector<std::string> words_;

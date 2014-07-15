@@ -57,6 +57,7 @@ void ParseLine(const string& line,
 
 string input;
 string conditional_probability_filename = "";
+string target_embedding_filename = "";
 int is_reverse = 0;
 int ITERATIONS = 5;
 int favor_diagonal = 0;
@@ -77,14 +78,15 @@ struct option options[] = {
     {"variational_bayes", no_argument,       &variational_bayes, 1  },
     {"alpha",             required_argument, 0,                  'a'},
     {"no_null_word",      no_argument,       &no_null_word,      1  },
-    {"conditional_probabilities", required_argument, 0,          'c'},
+    {"conditional_probability_filename", required_argument, 0,          'c'},
+    {"target_embedding_filename", required_argument, 0,          'e'},
     {0,0,0,0}
 };
 
 bool InitCommandLine(int argc, char** argv) {
   while (1) {
     int oi;
-    int c = getopt_long(argc, argv, "i:rI:dp:T:ova:Nc:", options, &oi);
+    int c = getopt_long(argc, argv, "i:rI:dp:T:ova:Nc:t:", options, &oi);
     if (c == -1) break;
     switch(c) {
       case 'i': input = optarg; break;
@@ -98,6 +100,7 @@ bool InitCommandLine(int argc, char** argv) {
       case 'a': alpha = atof(optarg); break;
       case 'N': no_null_word = 1; break;
       case 'c': conditional_probability_filename = optarg; break;
+      case 't': target_embedding_filename = optarg; break;
       default: return false;
     }
   }
@@ -120,7 +123,8 @@ int main(int argc, char** argv) {
          << "  -p: p_null parameter (default = 0.08)\n"
          << "  -N: No null word\n"
          << "  -a: alpha parameter for optional Dirichlet prior (default = 0.01)\n"
-         << "  -T: starting lambda for diagonal distance parameter (default = 4)\n";
+         << "  -T: starting lambda for diagonal distance parameter (default = 4)\n"
+         << "  -e: target embedding file \n";
     return 1;
   }
   bool use_null = !no_null_word;
@@ -131,8 +135,29 @@ int main(int argc, char** argv) {
   double prob_align_not_null = 1.0 - prob_align_null;
   const unsigned kNULL = d.Convert("<eps>");
 
+  // Read data once to build dictionary
+  ifstream in(input.c_str());
+  if (!in) {
+    cerr << "Can't read " << input << endl;
+    return 1;
+  }
+  while(true) {
+    string line;
+    vector<unsigned> src, trg;
+    getline(in, line);
+    if (!in) break;
+    src.clear(); trg.clear();
+    ParseLine(line, &src, &trg);
+  }
+
+  // Initialize TTable
   TTable *s2t;
-  s2t = new MultinomialTable();
+  if (target_embedding_filename != ""){
+    s2t = new GaussianTable(target_embedding_filename, &d);
+  }
+  else {
+    s2t = new MultinomialTable();
+  }
 
   unordered_map<pair<short, short>, unsigned, PairHash> size_counts;
   double tot_len_ratio = 0;
