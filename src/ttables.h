@@ -139,29 +139,69 @@ class GaussianTable : public TTable {
       std::cerr << "Can't read " << embedding_file << std::endl;
     }
     std::string line;
-    int lc = 0;
-    in >> words >> size; 
-    std::cerr << "Reading embedding: "<< words << " words of size " << size << std::endl;
+    in >> words >> dim; 
+    std::cerr << "Reading embedding: "<< words << " words of dim " << dim << std::endl;
+    std::vector<double> initial_mean(dim,0.0);
+    std::vector<double> initial_covariance(dim,0.0);
+    double num_embeddings = 0.0;
     while (getline(in,line)){
       std::string input_token;
       std::stringstream ss(line);
       getline(ss,input_token,' ');
       unsigned word_id = d->Convert(input_token,true);
-      embeddings[word_id] = std::vector<double>();
-      for (unsigned vi=0;vi<size;++vi){
-	getline(ss,input_token,' ');
-	embeddings[word_id].push_back(::atof(input_token.c_str()));
+      if (word_id > 0){
+	++num_embeddings;
+	embeddings[word_id] = std::vector<double>();
+	for (unsigned vi=0;vi<dim;++vi){
+	  getline(ss,input_token,' ');
+	  double value = ::atof(input_token.c_str());
+	  embeddings[word_id].push_back(value);
+	  initial_mean[vi] += value;
+	  initial_covariance[vi] += (value*value);
+	}
       }
-      ++lc;
     }
 
-    // temp
-    PrintEmbeddings(d);
+    // initialize gaussian mean and covariance
+    for (unsigned vi=0;vi<dim;++vi){
+      initial_mean[vi] /= num_embeddings;
+      initial_covariance[vi] = initial_covariance[vi]/num_embeddings - initial_mean[vi]*initial_mean[vi];
+    }
+    for (unsigned v=0; v <= d->max(); ++v){
+      // assign same vector to both e/f sides, even though in practice we only need to index on e
+      mean[v] = initial_mean;
+      covariance[v] = initial_covariance;
+    }
+    d_ = d; //temp
+    //PrintEmbeddings(d); //temp
   }
 
   double prob(unsigned e, unsigned f) const {
-    std::cout << "Not yet implemented";
-    exit(1);
+    const std::vector<double> & fvec = embeddings.find(f)->second;
+    const std::vector<double> & m = mean.find(e)->second;
+    const std::vector<double> & c = covariance.find(e)->second;
+    double acc=0.0;
+    double det=1.0;
+    for (unsigned vi=0;vi<dim;++vi){
+      acc += -0.5*std::pow(fvec[vi]-m[vi],2)/c[vi];
+      det *= c[vi];
+    }
+    double normalizer = std::sqrt(std::pow(2*PI,dim)*std::fabs(det));
+
+    // temp
+    //std::cerr << "-------" << std::endl << "prob(trg=" << d_->Convert(f) << ",src=" << d_->Convert(e) << ")=" << std::exp(acc)/normalizer << std::endl;
+    //PrintVector(fvec,d_->Convert(f));
+    //PrintMean(e);
+    //PrintCovariance(e);
+
+
+    double result = std::exp(acc)/normalizer;
+    // temp: clipping to prevent nan; is there a better way?
+    if (result < 1e-9)
+      result = 1e-9;
+    if (result > 1e+9)
+      result = 1e+9;
+    return result;
   }
 
   void NormalizeVB(const double alpha) {
@@ -170,9 +210,29 @@ class GaussianTable : public TTable {
   }
 
   void Normalize() {
-    std::cout << "Not yet implemented";
-    exit(1);
+    for (unsigned i = 0; i < counts.size(); ++i) {
+      const Word2Double& cpd = counts[i];
+      double mass=0;
+      std::vector<double> &m = mean[i];
+      std::fill(m.begin(),m.end(),0.0);
+      std::vector<double> &c = covariance[i];
+      std::fill(c.begin(),c.end(),0.0);
+      for (Word2Double::const_iterator j = cpd.begin(); j != cpd.end(); ++j) {
+	std::vector<double> &e = embeddings[j->first];
+	for (unsigned vi=0;vi<dim;++vi){
+	  m[vi] += j->second*e[vi];
+	  c[vi] += j->second*e[vi]*e[vi];
+	}
+	mass += j->second;
+      }
 
+      for (unsigned vi=0;vi<dim;++vi){
+	m[vi] /= mass; 
+	c[vi] = c[vi]/mass - m[vi]*m[vi];
+      }
+      if (mass != 0 && i%100==0) {PrintMean(i);} //temp
+    }
+    counts.clear();
   }
 
   TTable& operator+=(const TTable& rhs) {
@@ -187,16 +247,41 @@ class GaussianTable : public TTable {
   }
 
   // Temporary for Debugging. just printout out the embeddings map
+  void PrintMean(unsigned e) const {
+    const std::vector<double> &m = mean.find(e)->second;
+    std::cerr << e << " " << d_->Convert(e) << " mean: ";
+    for (unsigned vi=0;vi<dim;++vi){
+      std::cerr << m[vi] << " ";
+    }
+    std::cerr << std::endl;
+  }
+
+  void PrintCovariance(unsigned e) const {
+    const std::vector<double> &c = covariance.find(e)->second;
+    std::cerr << e << " " << d_->Convert(e) << " cov: ";
+    for (unsigned vi=0;vi<dim;++vi){
+      std::cerr << c[vi] << " ";
+    }
+    std::cerr << std::endl;
+  }
+
+  void PrintVector(const std::vector<double> &v, const std::string tag) const{
+    std::cerr << tag << " vec: ";
+    for (unsigned vi=0;vi<dim;++vi){
+      std::cerr << v[vi] << " ";
+    }
+    std::cerr << std::endl;
+  }
   void PrintEmbeddings(Dict* d){
-    for (unsigned v=0;v<words;++v){
+    for (unsigned v=0; v <= d->max(); ++v){
       std::string this_word = d->Convert(v);
-      std::cerr << "word/id: " << this_word << " " << v << " " ;
       std::unordered_map< unsigned, std::vector<double> >::const_iterator it = embeddings.find(v);
       if (it == embeddings.end()){
-	std::cerr << " -- ";
+	std::cerr << "word/id: " << this_word << " " << v << " __no_embedding__ ";
       }
       else {
-	for (unsigned vv=0;vv<size;++vv){
+	std::cerr << "word/id: " << this_word << " " << v << " " ;
+	for (unsigned vv=0;vv<dim;++vv){
 	  std::cerr << (it->second)[vv] << " ";
 	}      
       }
@@ -205,11 +290,14 @@ class GaussianTable : public TTable {
 
   }
 
- public:
+ private:
   std::unordered_map< unsigned, std::vector<double> > embeddings;
+  std::unordered_map< unsigned, std::vector<double> > mean;
+  std::unordered_map< unsigned, std::vector<double> > covariance; // assume diagonal covariance
   unsigned words; // number of words in embeddings file
-  unsigned size; // size (dimension) of embedding vectors
-
+  unsigned dim; // dimension of embedding vectors
+  static const double PI  = 3.141592653589793238463;
+  Dict* d_; //temp
 };
 
 #endif

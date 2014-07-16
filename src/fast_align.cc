@@ -218,6 +218,10 @@ int main(int argc, char** argv) {
           if (favor_diagonal)
             prob_a_i = DiagonalAlignment::UnnormalizedProb(j + 1, i, trg.size(), src.size(), diagonal_tension) / az;
           probs[i] = s2t->prob(src[i-1], f_j) * prob_a_i;
+
+	  if (lc==1 || lc==500 || lc==944){ // temp: debugging 
+	    std::cerr << "(trg=" << j << "/"<< d.Convert(f_j) << ",src=" << i << "/" << d.Convert(src[i-1]) << ")=" << probs[i] << " " << probs[i]/prob_a_i << " temp_sum=" << sum << std::endl;
+	  }
           sum += probs[i];
         }
         if (final_iteration) {
@@ -254,6 +258,7 @@ int main(int argc, char** argv) {
         }
         likelihood += log(sum);
       }
+      if (lc%500==0) std::cerr << "line:" <<lc << " likelihood_sum:" << likelihood << std::endl; //temp
       if (final_iteration) cout << endl;
     }
 
