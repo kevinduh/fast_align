@@ -27,6 +27,12 @@
 
 using namespace std;
 
+// temp: specifying which line numbers to print out debugging info
+#define LINE_TO_DEBUG (lc==1 || lc==2 || lc==29234)
+// temp: specifying how many lines to pass through to print out diagnostics
+#define DEBUG_INTERVAL 1000
+
+
 struct PairHash {
   size_t operator()(const pair<short,short>& x) const {
     return (unsigned short)x.first << 16 | (unsigned)x.second;
@@ -79,7 +85,7 @@ struct option options[] = {
     {"alpha",             required_argument, 0,                  'a'},
     {"no_null_word",      no_argument,       &no_null_word,      1  },
     {"conditional_probability_filename", required_argument, 0,          'c'},
-    {"target_embedding_filename", required_argument, 0,          'e'},
+    {"target_embedding_filename", required_argument, 0,          't'},
     {0,0,0,0}
 };
 
@@ -210,6 +216,10 @@ int main(int argc, char** argv) {
           if (favor_diagonal) prob_a_i = prob_align_null;
           probs[0] = s2t->prob(kNULL, f_j) * prob_a_i;
           sum += probs[0];
+	  if (LINE_TO_DEBUG){ // temp: debugging 
+	    std::cerr << "(trg=" << j << "/"<< d.Convert(f_j) << ",src=null)=" << probs[0] << " " << probs[0]/prob_a_i <<" running_sum=" << sum << " line=" << lc << " iter=" << iter << std::endl;
+	    s2t->prob_debug(kNULL, f_j);
+	  }
         }
         double az = 0;
         if (favor_diagonal)
@@ -218,11 +228,11 @@ int main(int argc, char** argv) {
           if (favor_diagonal)
             prob_a_i = DiagonalAlignment::UnnormalizedProb(j + 1, i, trg.size(), src.size(), diagonal_tension) / az;
           probs[i] = s2t->prob(src[i-1], f_j) * prob_a_i;
-
-	  if (lc==1 || lc==500 || lc==944){ // temp: debugging 
-	    std::cerr << "(trg=" << j << "/"<< d.Convert(f_j) << ",src=" << i << "/" << d.Convert(src[i-1]) << ")=" << probs[i] << " " << probs[i]/prob_a_i << " temp_sum=" << sum << std::endl;
-	  }
           sum += probs[i];
+	  if (LINE_TO_DEBUG){ // temp: debugging 
+	    std::cerr << "(trg=" << j << "/"<< d.Convert(f_j) << ",src=" << i << "/" << d.Convert(src[i-1]) << ")=" << probs[i] << " " << probs[i]/prob_a_i << " running_sum=" << sum << " line=" << lc << " iter=" << iter << std::endl;
+	    s2t->prob_debug(src[i-1], f_j);
+	  }
         }
         if (final_iteration) {
           double max_p = -1;
@@ -249,16 +259,19 @@ int main(int argc, char** argv) {
             double count = probs[0] / sum;
             c0 += count;
             s2t->Increment(kNULL, f_j, count);
+	    if (lc==1) std::cerr << count << " ";
           }
           for (unsigned i = 1; i <= src.size(); ++i) {
             const double p = probs[i] / sum;
             s2t->Increment(src[i-1], f_j, p);
             emp_feat += DiagonalAlignment::Feature(j, i, trg.size(), src.size()) * p;
+	    if (lc%DEBUG_INTERVAL==0||LINE_TO_DEBUG) std::cerr << p << ", "; //temp: debugging
           }
         }
         likelihood += log(sum);
+	if (lc%DEBUG_INTERVAL==0||LINE_TO_DEBUG) std::cerr << " alignprobs of j=" << j << " in line=" << lc << " sum:" << sum << " iter=" << iter << std::endl; //temp
       }
-      if (lc%500==0) std::cerr << "line:" <<lc << " likelihood_sum:" << likelihood << std::endl; //temp
+      if (lc%DEBUG_INTERVAL==0||LINE_TO_DEBUG) std::cerr << "line:" <<lc << " sentence_log_likelihood_sum:" << likelihood << " iter=" << iter << std::endl; //temp
       if (final_iteration) cout << endl;
     }
 

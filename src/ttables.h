@@ -44,6 +44,7 @@ class TTable {
   virtual ~TTable() {};
 
   virtual double prob(unsigned e, unsigned f) const = 0;
+  virtual void prob_debug(unsigned e, unsigned f) const {};
   virtual void NormalizeVB(const double alpha) = 0;
   virtual void Normalize() = 0;
   virtual TTable& operator+=(const TTable& rhs) = 0;
@@ -187,6 +188,7 @@ class GaussianTable : public TTable {
       det *= c[vi];
     }
     double normalizer = std::sqrt(std::pow(2*PI,dim)*std::fabs(det));
+    double result = std::exp(acc)/normalizer;
 
     // temp
     //std::cerr << "-------" << std::endl << "prob(trg=" << d_->Convert(f) << ",src=" << d_->Convert(e) << ")=" << std::exp(acc)/normalizer << std::endl;
@@ -194,15 +196,41 @@ class GaussianTable : public TTable {
     //PrintMean(e);
     //PrintCovariance(e);
 
-
-    double result = std::exp(acc)/normalizer;
     // temp: clipping to prevent nan; is there a better way?
     if (result < 1e-9)
       result = 1e-9;
     if (result > 1e+9)
       result = 1e+9;
+    if (isnan(result))
+      result = 1e+9; 
     return result;
   }
+
+  void prob_debug(unsigned e, unsigned f) const {
+    const std::vector<double> & fvec = embeddings.find(f)->second;
+    const std::vector<double> & m = mean.find(e)->second;
+    const std::vector<double> & c = covariance.find(e)->second;
+    double acc=0.0;
+    double det=1.0;
+    for (unsigned vi=0;vi<dim;++vi){
+      acc += -0.5*std::pow(fvec[vi]-m[vi],2)/c[vi];
+      det *= c[vi];
+    }
+    double normalizer = std::sqrt(std::pow(2*PI,dim)*std::fabs(det));
+    double result = std::exp(acc)/normalizer;
+
+
+    std::cerr << "--- prob_debug: prob(trg=" << d_->Convert(f) << ",src=" << d_->Convert(e) << ")=" << result << std::endl;
+    std::cerr << "    "; 
+    PrintVector(fvec,d_->Convert(f));
+    std::cerr << "    "; 
+    PrintMean(e);
+    std::cerr << "    "; 
+    PrintCovariance(e);
+    if (isnan(result))
+      std::cerr << "     (detect isnan=true)" << std::endl;
+  }
+
 
   void NormalizeVB(const double alpha) {
     std::cout << "Not yet implemented";
@@ -249,28 +277,28 @@ class GaussianTable : public TTable {
   // Temporary for Debugging. just printout out the embeddings map
   void PrintMean(unsigned e) const {
     const std::vector<double> &m = mean.find(e)->second;
-    std::cerr << e << " " << d_->Convert(e) << " mean: ";
+    std::cerr << e << " " << d_->Convert(e) << " mean: [";
     for (unsigned vi=0;vi<dim;++vi){
-      std::cerr << m[vi] << " ";
+      std::cerr << m[vi] << ", ";
     }
-    std::cerr << std::endl;
+    std::cerr <<  "]" << std::endl;
   }
 
   void PrintCovariance(unsigned e) const {
     const std::vector<double> &c = covariance.find(e)->second;
-    std::cerr << e << " " << d_->Convert(e) << " cov: ";
+    std::cerr << e << " " << d_->Convert(e) << " cov: [";
     for (unsigned vi=0;vi<dim;++vi){
-      std::cerr << c[vi] << " ";
+      std::cerr << c[vi] << ", ";
     }
-    std::cerr << std::endl;
+    std::cerr <<  "]" << std::endl;
   }
 
   void PrintVector(const std::vector<double> &v, const std::string tag) const{
-    std::cerr << tag << " vec: ";
+    std::cerr << tag << " vec: [";
     for (unsigned vi=0;vi<dim;++vi){
-      std::cerr << v[vi] << " ";
+      std::cerr << v[vi] << ", ";
     }
-    std::cerr << std::endl;
+    std::cerr << "]" << std::endl;
   }
   void PrintEmbeddings(Dict* d){
     for (unsigned v=0; v <= d->max(); ++v){
