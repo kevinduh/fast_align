@@ -173,16 +173,27 @@ class GaussianTable : public TTable {
       mean[v] = initial_mean;
       covariance[v] = initial_covariance;
     }
+
     d_ = d; //temp
     //PrintEmbeddings(d); //temp
+
+    // Assign default vector to all words that do not have embeddings
+    for (unsigned v=0; v <= d->max(); ++v){
+      std::unordered_map< unsigned, std::vector<double> >::const_iterator it = embeddings.find(v);
+      if (it == embeddings.end()){
+	embeddings[v] = initial_mean; // temp: is mean vector the best?
+      }
+    }
   }
 
   double prob(unsigned e, unsigned f) const {
+
     const std::vector<double> & fvec = embeddings.find(f)->second;
     const std::vector<double> & m = mean.find(e)->second;
     const std::vector<double> & c = covariance.find(e)->second;
     double acc=0.0;
     double det=1.0;
+
     for (unsigned vi=0;vi<dim;++vi){
       acc += -0.5*std::pow(fvec[vi]-m[vi],2)/c[vi];
       det *= c[vi];
