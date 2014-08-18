@@ -218,7 +218,7 @@ int main(int argc, char** argv) {
           sum += probs[0];
 	  if (LINE_TO_DEBUG){ // temp: debugging 
 	    std::cerr << "(trg=" << j << "/"<< d.Convert(f_j) << ",src=null)=" << probs[0] << " " << probs[0]/prob_a_i <<" running_sum=" << sum << " line=" << lc << " iter=" << iter << std::endl;
-	    s2t->prob_debug(kNULL, f_j);
+	    //temp: s2t->prob_debug(kNULL, f_j);
 	  }
         }
         double az = 0;
@@ -231,7 +231,7 @@ int main(int argc, char** argv) {
           sum += probs[i];
 	  if (LINE_TO_DEBUG){ // temp: debugging 
 	    std::cerr << "(trg=" << j << "/"<< d.Convert(f_j) << ",src=" << i << "/" << d.Convert(src[i-1]) << ")=" << probs[i] << " " << probs[i]/prob_a_i << " running_sum=" << sum << " line=" << lc << " iter=" << iter << std::endl;
-	    s2t->prob_debug(src[i-1], f_j);
+	    //temp: s2t->prob_debug(src[i-1], f_j);
 	  }
         }
         if (final_iteration) {
