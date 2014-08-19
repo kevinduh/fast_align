@@ -174,8 +174,13 @@ class GaussianTable : public TTable {
     for (unsigned v=0; v <= d->max(); ++v){
       // assign same GMM to both e/f sides, even though in practice we only need to index on e
       // further, initialize with 1-component GMM
-      gmms[v] = GMM(1,dim);
+      //gmms[v] = GMM(1,dim);
+      //gmms[v].setComponent(0,initial_mean,initial_covariance);
+
+      // now, try 2-component GMM - in practice, need better initialization
+      gmms[v] = GMM(2,dim);
       gmms[v].setComponent(0,initial_mean,initial_covariance);
+      gmms[v].setComponent(1,initial_mean,initial_covariance);
     }
 
     d_ = d; //temp
@@ -203,33 +208,19 @@ class GaussianTable : public TTable {
   }
 
   void Normalize() {
-    /* for (unsigned i = 0; i < counts.size(); ++i) { */
-    /*   const Word2Double& cpd = counts[i]; */
-    /*   double mass=0; */
-    /*   std::vector<double> &m = mean[i]; */
-    /*   std::fill(m.begin(),m.end(),0.0); */
-    /*   std::vector<double> &c = covariance[i]; */
-    /*   std::fill(c.begin(),c.end(),0.0); */
-    /*   for (Word2Double::const_iterator j = cpd.begin(); j != cpd.end(); ++j) { */
-    /* 	std::vector<double> &e = embeddings[j->first]; */
-    /* 	for (unsigned vi=0;vi<dim;++vi){ */
-    /* 	  m[vi] += j->second*e[vi]; */
-    /* 	  c[vi] += j->second*e[vi]*e[vi]; */
-    /* 	} */
-    /* 	mass += j->second; */
-    /*   } */
 
-    /*   for (unsigned vi=0;vi<dim;++vi){ */
-    /* 	m[vi] /= mass;  */
-    /* 	c[vi] = c[vi]/mass - m[vi]*m[vi]; */
-    /*   } */
-    /*   if (mass != 0 && i%100==0) {PrintMean(i);} //temp */
-    /* } */
-
-    /// TEMP: FOR NOW, no updating
     for (unsigned i = 0; i < counts.size(); ++i) { 
-      gmms[i].MLE(counts[i],embeddings);
+      if (counts[i].size() > 0){
+	std::cerr << "Before MLE: word=" << i << "(" << d_->Convert(i) << ") counts.size=" << counts[i].size() << std::endl;
+	gmms[i].print();
+
+	gmms[i].MLE(counts[i],embeddings);
+	std::cerr << "After MLE: word=" << i << "(" << d_->Convert(i) << ") counts.size=" << counts[i].size() << std::endl;
+	gmms[i].print();
+	std::cerr << std::endl;
+      }
     }
+
 
 
     counts.clear();

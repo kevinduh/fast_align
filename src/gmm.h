@@ -26,9 +26,9 @@ class GMM {
   typedef std::vector<std::vector<double> > Matrix;
 
   GMM(){}
-  GMM(unsigned numComponents, unsigned dim): 
-  numComponents(numComponents), dim(dim), means(numComponents, std::vector<double>(dim)), 
-    covs(numComponents, std::vector<double>(dim)), weights(numComponents,1/numComponents) {}
+  GMM(unsigned k, unsigned dim): 
+  numComponents(k), dim(dim), means(k, std::vector<double>(dim)), 
+    covs(k, std::vector<double>(dim)), weights(k,1.0/(double)k) {}
 
   void setComponent(const unsigned id, const std::vector<double>& mean, const std::vector<double>& cov){
     assert(id < numComponents);
@@ -39,6 +39,78 @@ class GMM {
   double prob(const std::vector<double>& sample) const {
     // return probability(sample) under this model (todo)
     double total = 0.0;
+    const std::vector<double> probs = probPerComponent(sample);
+    for (unsigned id=0; id<numComponents; ++id){
+      total += probs[id];
+    }
+    return total;
+  }
+
+  void MLE(const Word2Double& cpd, Word2Vector& embeddings){
+
+    // E-step
+    Word2Vector all_posterior; 
+    for (Word2Double::const_iterator j = cpd.begin(); j != cpd.end(); ++j) {
+      std::vector<double> &e = embeddings[j->first];
+      std::vector<double> posterior = probPerComponent(e);
+      double total = 0.0;
+      for (unsigned id=0; id<numComponents; ++id)
+	total += posterior[id];
+      for (unsigned id=0; id<numComponents; ++id)
+	posterior[id]/=total;
+      all_posterior[j->first] = posterior;
+    }
+
+    // M-step
+    double totalmass=0.0;
+    for (unsigned id=0; id<numComponents; ++id){
+      double mass=0;
+      std::vector<double> &m = means[id]; std::fill(m.begin(),m.end(),0.0);
+      std::vector<double> &c = covs[id]; std::fill(c.begin(),c.end(),0.00001);  // temp: add small regularizer to prevent instability
+
+      for (Word2Double::const_iterator j = cpd.begin(); j != cpd.end(); ++j) {
+	std::vector<double> &e = embeddings[j->first];
+	for (unsigned vi=0;vi<dim;++vi){ 
+	  m[vi] += j->second*all_posterior[j->first][id]*e[vi]; 
+	  c[vi] += j->second*all_posterior[j->first][id]*e[vi]*e[vi]; 
+	}
+	mass += j->second*all_posterior[j->first][id];
+      }
+      if (mass > 0){
+	for (unsigned vi=0;vi<dim;++vi){ 
+	  m[vi] /= mass;  
+	  c[vi] = c[vi]/mass - m[vi]*m[vi]; 
+	} 
+      }
+      weights[id] = mass;
+      totalmass += mass;
+    }
+    if (totalmass > 0){
+      for (unsigned id=0; id<numComponents; ++id){
+	weights[id] /= totalmass;
+      }
+    }
+  }
+  
+  void print() const {
+    std::cerr << "GMM weight: ";
+    for (unsigned id=0; id < numComponents ; ++id)
+      std::cerr << id << ":" << weights[id] << " ";
+    for (unsigned id=0; id < numComponents ; ++id){
+      std::cerr << std::endl << "  " << id << " mean: ";
+      for (unsigned vi=0; vi < dim; ++vi)
+	std::cerr << means[id][vi] << ", ";
+      std::cerr << std::endl << "  " << id << " cov: ";
+      for (unsigned vi=0; vi < dim; ++vi)
+	std::cerr << covs[id][vi] << ", ";
+    }
+    std::cerr << std::endl;
+  }
+
+ private:
+
+  std::vector<double> probPerComponent(const std::vector<double>& sample) const{
+    std::vector<double> probs(numComponents,0.0);
     for (unsigned id=0; id<numComponents; ++id){
       const std::vector<double>& m = means[id];
       const std::vector<double>& c = covs[id];
@@ -59,32 +131,11 @@ class GMM {
       if (isnan(result))
 	result = 1e+9; 
 
-      total += weights[id]*result;
+      probs[id] = weights[id]*result;
     }
-    return total;
+    return probs;
   }
 
-  void MLE(const Word2Double& cpd, Word2Vector& embeddings){
-    // temp: for now, assume 1 component
-    double mass=0;
-    std::vector<double> &m = means[0]; std::fill(m.begin(),m.end(),0.0);
-    std::vector<double> &c = covs[0]; std::fill(c.begin(),c.end(),0.0);
-
-    for (Word2Double::const_iterator j = cpd.begin(); j != cpd.end(); ++j) {
-      std::vector<double> &e = embeddings[j->first];
-      for (unsigned vi=0;vi<dim;++vi){ 
-	m[vi] += j->second*e[vi]; 
-	c[vi] += j->second*e[vi]*e[vi]; 
-      }
-      mass += j->second;
-    }
-    for (unsigned vi=0;vi<dim;++vi){ 
-      m[vi] /= mass;  
-      c[vi] = c[vi]/mass - m[vi]*m[vi]; 
-    } 
-  }
-  
- private:
   unsigned numComponents; // number of mixture components
   unsigned dim; // dimension of each mean & diagonal covariance vector
   Matrix means; // matrix of means
