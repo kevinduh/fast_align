@@ -71,6 +71,7 @@ double prob_align_null = 0.08;
 double diagonal_tension = 4.0;
 int optimize_tension = 0;
 int variational_bayes = 0;
+unsigned num_gauss_components = 1;
 double alpha = 0.01;
 int no_null_word = 0;
 struct option options[] = {
@@ -92,7 +93,7 @@ struct option options[] = {
 bool InitCommandLine(int argc, char** argv) {
   while (1) {
     int oi;
-    int c = getopt_long(argc, argv, "i:rI:dp:T:ova:Nc:t:", options, &oi);
+    int c = getopt_long(argc, argv, "i:rI:dp:T:ova:Nc:t:k:", options, &oi);
     if (c == -1) break;
     switch(c) {
       case 'i': input = optarg; break;
@@ -107,6 +108,7 @@ bool InitCommandLine(int argc, char** argv) {
       case 'N': no_null_word = 1; break;
       case 'c': conditional_probability_filename = optarg; break;
       case 't': target_embedding_filename = optarg; break;
+      case 'k': num_gauss_components = atoi(optarg); break;
       default: return false;
     }
   }
@@ -130,7 +132,8 @@ int main(int argc, char** argv) {
          << "  -N: No null word\n"
          << "  -a: alpha parameter for optional Dirichlet prior (default = 0.01)\n"
          << "  -T: starting lambda for diagonal distance parameter (default = 4)\n"
-         << "  -e: target embedding file \n";
+         << "  -e: target embedding file \n"
+	 << "  -k: number of components in Gaussian Mixture \n";
     return 1;
   }
   bool use_null = !no_null_word;
@@ -159,7 +162,7 @@ int main(int argc, char** argv) {
   // Initialize TTable
   TTable *s2t;
   if (target_embedding_filename != ""){
-    s2t = new GaussianTable(target_embedding_filename, &d);
+    s2t = new GaussianTable(target_embedding_filename, num_gauss_components, &d);
   }
   else {
     s2t = new MultinomialTable();

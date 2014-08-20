@@ -135,8 +135,9 @@ class GaussianTable : public TTable {
  public:
 
   typedef std::unordered_map<unsigned, std::vector<double> > Word2Vector; 
+  typedef std::vector<std::vector<double> > Matrix;
 
-  GaussianTable(const std::string& embedding_file, Dict* d){
+  GaussianTable(const std::string& embedding_file, unsigned num_gauss_components, Dict* d){
     // read file
     std::ifstream in(embedding_file.c_str());
     if (!in){
@@ -166,11 +167,19 @@ class GaussianTable : public TTable {
       }
     }
 
+    d_ = d; //temp
+    //PrintEmbeddings(d); //temp
+
+
     // initialize gaussian mean and covariance
     for (unsigned vi=0;vi<dim;++vi){
       initial_mean[vi] /= num_embeddings;
       initial_covariance[vi] = initial_covariance[vi]/num_embeddings - initial_mean[vi]*initial_mean[vi];
     }
+
+    KMeans kmeans_initializer = KMeans();
+    std::pair<Matrix,std::vector<double> > centroid_and_weight = kmeans_initializer.run(embeddings, num_gauss_components);
+
     for (unsigned v=0; v <= d->max(); ++v){
       // assign same GMM to both e/f sides, even though in practice we only need to index on e
       // further, initialize with 1-component GMM
@@ -178,13 +187,19 @@ class GaussianTable : public TTable {
       //gmms[v].setComponent(0,initial_mean,initial_covariance);
 
       // now, try 2-component GMM - in practice, need better initialization
-      gmms[v] = GMM(2,dim);
-      gmms[v].setComponent(0,initial_mean,initial_covariance);
-      gmms[v].setComponent(1,initial_mean,initial_covariance);
+      //gmms[v] = GMM(2,dim);
+      //gmms[v].setComponent(0,initial_mean,initial_covariance);
+      //gmms[v].setComponent(1,initial_mean,initial_covariance);
+
+      // now, try k-means initialization
+      gmms[v] = GMM(num_gauss_components,dim);
+      gmms[v].setWeights(centroid_and_weight.second);
+      for (unsigned id=0;id<num_gauss_components;++id)
+	gmms[v].setComponent(id,centroid_and_weight.first[id],initial_covariance);
+      
+
     }
 
-    d_ = d; //temp
-    //PrintEmbeddings(d); //temp
 
     // Assign default vector to all words that do not have embeddings
     for (unsigned v=0; v <= d->max(); ++v){

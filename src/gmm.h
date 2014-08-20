@@ -16,6 +16,7 @@
 #define _GMM_H_
 
 #include <cassert>
+#include "kmeans.h"
 
 /// Gaussian Mixture Model (GMM): prob(x) = \Prod_i weights[i] * Gaussian(x;means[i],covs[i])
 class GMM {
@@ -36,8 +37,23 @@ class GMM {
     covs[id] = cov;
   }
   
+  void setWeights(const std::vector<double>& w){
+    double sum = 0.0;
+    for (unsigned i=0;i<w.size();++i){
+      sum += w[i];
+    }
+    if (sum == 1.0){
+      weights = w;
+    } 
+    else {
+      // else ignore the weight setting
+      std::cerr << "Warning: In gmm.setWeights, weights do not sum to 1. Keeping defaults." << std::endl;
+    }
+
+  }
+
   double prob(const std::vector<double>& sample) const {
-    // return probability(sample) under this model (todo)
+    // return probability(sample) under this model 
     double total = 0.0;
     const std::vector<double> probs = probPerComponent(sample);
     for (unsigned id=0; id<numComponents; ++id){
