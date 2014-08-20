@@ -226,13 +226,19 @@ class GaussianTable : public TTable {
 
     for (unsigned i = 0; i < counts.size(); ++i) { 
       if (counts[i].size() > 0){
-	std::cerr << "Before MLE: word=" << i << "(" << d_->Convert(i) << ") counts.size=" << counts[i].size() << std::endl;
-	gmms[i].print();
+
+	if (i%1000==0){ // sampling a few words for diagnostics purposes
+	  std::cerr << "Before MLE: word=" << i << "(" << d_->Convert(i) << ") counts.size=" << counts[i].size() << std::endl; 
+	  gmms[i].print();
+	}
 
 	gmms[i].MLE(counts[i],embeddings);
-	std::cerr << "After MLE: word=" << i << "(" << d_->Convert(i) << ") counts.size=" << counts[i].size() << std::endl;
-	gmms[i].print();
-	std::cerr << std::endl;
+
+	if (i%1000==0){
+	  std::cerr << "After MLE: word=" << i << "(" << d_->Convert(i) << ") counts.size=" << counts[i].size() << std::endl; 
+	  gmms[i].print(); 
+	  std::cerr << std::endl;
+	}
       }
     }
 
@@ -269,7 +275,7 @@ class GaussianTable : public TTable {
       else {
 	std::cerr << "word/id: " << this_word << " " << v << " " ;
 	for (unsigned vv=0;vv<dim;++vv){
-	  std::cerr << (it->second)[vv] << " ";
+	  std::cerr << (it->second)[vv] << ", ";
 	}      
       }
       std::cerr << std::endl;
