@@ -42,14 +42,10 @@ class GMM {
     for (unsigned i=0;i<w.size();++i){
       sum += w[i];
     }
-    if (sum == 1.0){
-      weights = w;
-    } 
-    else {
-      // else ignore the weight setting
-      std::cerr << "Warning: In gmm.setWeights, weights do not sum to 1. Keeping defaults." << std::endl;
+    assert(sum>0.0);
+    for (unsigned i=0;i<w.size();++i){
+      weights[i] = w[i]/sum ;
     }
-
   }
 
   double prob(const std::vector<double>& sample) const {
