@@ -19,6 +19,7 @@
 #include <utility>
 #include <fstream>
 #include <getopt.h>
+#include <sstream>
 
 #include "src/port.h"
 #include "src/corpus.h"
@@ -64,6 +65,7 @@ void ParseLine(const string& line,
 string input;
 string conditional_probability_filename = "";
 string target_embedding_filename = "";
+string save_alignfile;
 int is_reverse = 0;
 int ITERATIONS = 5;
 int favor_diagonal = 0;
@@ -74,6 +76,7 @@ int variational_bayes = 0;
 unsigned num_gauss_components = 1;
 double alpha = 0.01;
 int no_null_word = 0;
+int save_interval = 1;
 struct option options[] = {
     {"input",             required_argument, 0,                  'i'},
     {"reverse",           no_argument,       &is_reverse,        1  },
@@ -93,7 +96,7 @@ struct option options[] = {
 bool InitCommandLine(int argc, char** argv) {
   while (1) {
     int oi;
-    int c = getopt_long(argc, argv, "i:rI:dp:T:ova:Nc:t:k:", options, &oi);
+    int c = getopt_long(argc, argv, "i:rI:dp:T:ova:Nc:t:k:s:S:", options, &oi);
     if (c == -1) break;
     switch(c) {
       case 'i': input = optarg; break;
@@ -109,6 +112,8 @@ bool InitCommandLine(int argc, char** argv) {
       case 'c': conditional_probability_filename = optarg; break;
       case 't': target_embedding_filename = optarg; break;
       case 'k': num_gauss_components = atoi(optarg); break;
+      case 's': save_interval = atoi(optarg); break;
+      case 'S': save_alignfile = optarg; break;
       default: return false;
     }
   }
@@ -132,6 +137,9 @@ int main(int argc, char** argv) {
          << "  -N: No null word\n"
          << "  -a: alpha parameter for optional Dirichlet prior (default = 0.01)\n"
          << "  -T: starting lambda for diagonal distance parameter (default = 4)\n"
+	 << "  -s: number of iterations for saving intermediate alignment results (\n"
+	 << "  -S: filename for saving intermediate alignment results (\n"
+         << " Options for embedding alignment:\n"
          << "  -e: target embedding file \n"
 	 << "  -k: number of components in Gaussian Mixture \n";
     return 1;
@@ -190,6 +198,15 @@ int main(int argc, char** argv) {
     double c0 = 0;
     double emp_feat = 0;
     double toks = 0;
+
+    std::ofstream save_alignfile_fn;
+    if (!save_alignfile.empty() && (iter % save_interval == 0)){
+      std::cerr << "save interval: " << iter << std::endl;
+      stringstream ss; 
+      ss << save_alignfile << "." << iter;
+      save_alignfile_fn.open(ss.str().c_str());
+    }
+
     while(true) {
       getline(in, line);
       if (!in) break;
@@ -210,6 +227,7 @@ int main(int argc, char** argv) {
       if (iter == 0)
         ++size_counts[make_pair<short,short>(trg.size(), src.size())];
       bool first_al = true;  // used when printing alignments
+      bool first_al2 = true;  // used when printing alignments
       toks += trg.size();
       for (unsigned j = 0; j < trg.size(); ++j) {
         const unsigned& f_j = trg[j];
@@ -237,8 +255,33 @@ int main(int argc, char** argv) {
 	    //temp: s2t->prob_debug(src[i-1], f_j);
 	  }
         }
+
+	// Save intermediate results (if needed)
+	if (!save_alignfile.empty() && (iter % save_interval == 0)){
+	  double max_p = -1;
+	  int max_index = -1;
+	  if (use_null) {
+	    max_index = 0;
+	    max_p = probs[0];
+	  }
+	  for (unsigned i = 1; i <= src.size(); ++i) {
+	    if (probs[i] > max_p) {
+	      max_index = i;
+	      max_p = probs[i];
+	    }
+	  }
+	  if (max_index > 0) {
+	    if (first_al2) first_al2 = false; else save_alignfile_fn << ' ';
+	    if (is_reverse)
+	      save_alignfile_fn << j << '-' << (max_index - 1);
+	    else
+	      save_alignfile_fn << (max_index - 1) << '-' << j;
+	  }
+	}
+
+
         if (final_iteration) {
-          double max_p = -1;
+	  double max_p = -1;
           int max_index = -1;
           if (use_null) {
             max_index = 0;
@@ -276,6 +319,7 @@ int main(int argc, char** argv) {
       }
       if (lc%DEBUG_INTERVAL==0||LINE_TO_DEBUG) std::cerr << "line:" <<lc << " sentence_log_likelihood_sum:" << likelihood << " iter=" << iter << std::endl; //temp
       if (final_iteration) cout << endl;
+      if (!save_alignfile.empty() && (iter % save_interval == 0)) save_alignfile_fn << endl;
     }
 
     // log(e) = 1.0
@@ -321,6 +365,11 @@ int main(int argc, char** argv) {
       //prob_align_null += (c0 / toks) * 0.2;
       prob_align_not_null = 1.0 - prob_align_null;
     }
+
+    if (!save_alignfile.empty() && (iter % save_interval == 0)){
+      save_alignfile_fn.close();
+    }
+
   }
   if (!conditional_probability_filename.empty()) {
     cerr << "conditional probabilities: " << conditional_probability_filename << endl;
